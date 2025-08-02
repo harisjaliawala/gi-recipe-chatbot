@@ -59,10 +59,22 @@ def process_query_sync(query_id: str, query: str) -> Tuple[str, str, str]:
     try:
         # get_agent_response now returns the full history
         # updated_history = get_agent_response(initial_messages)
+        
+        ## The next 4 lines are commented out because this was basic tracing and I am adding tracing with a metadata field to know when it comes from the bulk test script
+        # with tracer.start_as_current_span("bulk_test_query") as span:
+        #     span.set_attribute("gen_ai.prompt_json", json.dumps(initial_messages))
+        #     updated_history = get_agent_response(initial_messages)
+        #     span.set_attribute("gen_ai.completion_json", json.dumps(updated_history))
+        
+        # start a span and tag it as from the bulk-testing tool
         with tracer.start_as_current_span("bulk_test_query") as span:
+            # metadata marker
+            span.set_attribute("bulk_test.tool", "bulk_testing_utility")
+            # your existing GenAI attributes
             span.set_attribute("gen_ai.prompt_json", json.dumps(initial_messages))
             updated_history = get_agent_response(initial_messages)
             span.set_attribute("gen_ai.completion_json", json.dumps(updated_history))
+
         # Extract the last assistant message for the result
         assistant_reply = ""
         if updated_history and updated_history[-1]["role"] == "assistant":
