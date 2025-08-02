@@ -12,6 +12,16 @@ sys.path.insert(0, str(PROJECT_ROOT))
 Reads a CSV file containing user queries, fires them against the `/chat`
 endpoint concurrently, and stores the results for later manual evaluation.
 """
+import os, json
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from braintrust.otel import BraintrustSpanProcessor
+
+# ─── Bootstrap OTel + Braintrust ───────────────────────────────────────────────
+provider = TracerProvider()
+provider.add_span_processor(BraintrustSpanProcessor())    # reads your BRAINTRUST_* env
+trace.set_tracer_provider(provider)
+tracer = trace.get_tracer(__name__)
 
 import argparse
 import csv
@@ -48,7 +58,11 @@ def process_query_sync(query_id: str, query: str) -> Tuple[str, str, str]:
     ]
     try:
         # get_agent_response now returns the full history
-        updated_history = get_agent_response(initial_messages)
+        # updated_history = get_agent_response(initial_messages)
+        with tracer.start_as_current_span("bulk_test_query") as span:
+            span.set_attribute("gen_ai.prompt_json", json.dumps(initial_messages))
+            updated_history = get_agent_response(initial_messages)
+            span.set_attribute("gen_ai.completion_json", json.dumps(updated_history))
         # Extract the last assistant message for the result
         assistant_reply = ""
         if updated_history and updated_history[-1]["role"] == "assistant":
