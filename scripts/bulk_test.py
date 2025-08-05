@@ -70,36 +70,6 @@ def process_query_sync(
     clarifier_response = ""
     final_response = ""
 
-    # Clarification step (first turn)
-    history = get_agent_response(history)
-    clarifier_response = history[-1]["content"]
-
-    # Append user's clarification answer
-    history.append({"role": "user", "content": clarification})
-
-    # Final recipe step (second turn)
-    history = get_agent_response(history)
-    final_response = history[-1]["content"]
-
-    return query_id, query, clarifier_response, final_response
-
-# def process_query_sync(
-#     query_id: str,
-#     query: str,
-#     clarification: str
-# ) -> Tuple[str, str, str, str]:
-#     """
-#     Runs a two-turn conversation in one trace:
-#       1) Ask initial query → get clarifier question
-#       2) Provide clarification → get final recipe
-
-#     Returns (query_id, query, clarifier_response, final_response)
-#     """
-#     # Initial user message
-#     history: List[Dict[str, str]] = [{"role": "user", "content": query}]
-#     clarifier_response = ""
-#     final_response = ""
-
     # Unique conversation identifier
     # conv_id = str(uuid.uuid4())
 
