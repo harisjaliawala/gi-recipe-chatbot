@@ -131,8 +131,8 @@ def get_agent_response(messages: List[Dict[str, str]]) -> List[Dict[str, str]]: 
     completion = _client.chat.completions.create(
         model=MODEL_NAME,
         messages=current_messages,
-        # stream=False,
-        # include_usage=True
+        stream=False,
+        include_usage=True
     )
 
     assistant_reply_content: str = (
