@@ -20,8 +20,8 @@ from braintrust import init_logger, wrap_openai
 load_dotenv(override=False)
 
 init_logger(
-    project="gi-recipe-chatbot",
-    api_key=os.getenv("BRAINTRUST_API_KEY"),
+    projectName="gi-recipe-chatbot",
+    apiKey=os.getenv("BRAINTRUST_API_KEY"),
 )
 
 _client = wrap_openai(
