@@ -94,7 +94,7 @@ SYSTEM_PROMPT: Final[str] = (
 
 
 # Fetch configuration *after* we loaded the .env file.
-MODEL_NAME: Final[str] = os.environ.get("MODEL_NAME", "gpt-4.1")
+MODEL_NAME: Final[str] = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
 
 # --- Agent wrapper ---------------------------------------------------------------
