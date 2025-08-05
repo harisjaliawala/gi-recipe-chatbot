@@ -21,4 +21,3 @@ braintrust[otel]
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-fastapi
-openai

@@ -9,24 +9,11 @@ wrapper around litellm so the rest of the application stays decluttered.
 import os
 from typing import Final, List, Dict
 
-
 import litellm  # type: ignore
 from dotenv import load_dotenv
 
-from openai import OpenAI
-from braintrust import init_logger, wrap_openai
-
 # Ensure the .env file is loaded as early as possible.
 load_dotenv(override=False)
-
-init_logger(
-    projectName="gi-recipe-chatbot",
-    apiKey=os.getenv("BRAINTRUST_API_KEY"),
-)
-
-_client = wrap_openai(
-    OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-)
 
 # --- Constants -------------------------------------------------------------------
 
@@ -122,18 +109,10 @@ def get_agent_response(messages: List[Dict[str, str]]) -> List[Dict[str, str]]: 
     else:
         current_messages = messages
 
-    # commented out litellm to use openai directly
-    # completion = litellm.completion(
-    #     model=MODEL_NAME,
-    #     messages=current_messages, # Pass the full history
-    # )
-
-    completion = _client.chat.completions.create(
+    completion = litellm.completion(
         model=MODEL_NAME,
-        messages=current_messages,
-        stream=False,
-        include_usage=True
-+    )
+        messages=current_messages, # Pass the full history
+    )
 
     assistant_reply_content: str = (
         completion["choices"][0]["message"]["content"]  # type: ignore[index]
