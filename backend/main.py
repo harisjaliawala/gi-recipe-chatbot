@@ -33,10 +33,10 @@ tracer = trace.get_tracer(__name__)
 APP_TITLE: Final[str] = "Recipe Chatbot"
 app = FastAPI(title=APP_TITLE)
 
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+# from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-# 2) Auto-instrument FastAPI so every request is a span
-FastAPIInstrumentor.instrument_app(app)
+# # 2) Auto-instrument FastAPI so every request is a span
+# FastAPIInstrumentor.instrument_app(app)
 
 # Serve static assets (currently just the HTML) under `/static/*`.
 STATIC_DIR = Path(__file__).parent.parent / "frontend"
@@ -88,11 +88,16 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:  # noqa: WPS430
     #    ) from exc
 
     try:
-        with tracer.start_as_current_span("chat_interaction") as span:
-            # attach your JSON payloads as attributes
-            span.set_attribute("gen_ai.prompt_json", json.dumps(request_messages))
-            updated_messages_dicts = get_agent_response(request_messages)
-            span.set_attribute("gen_ai.completion_json", json.dumps(updated_messages_dicts))
+        # with tracer.start_as_current_span("chat_interaction") as span:
+        #     # attach your JSON payloads as attributes
+        #     span.set_attribute("gen_ai.prompt_json", json.dumps(request_messages))
+        #     updated_messages_dicts = get_agent_response(request_messages)
+        #     span.set_attribute("gen_ai.completion_json", json.dumps(updated_messages_dicts))
+            with tracer.start_as_current_span("chat_interaction") as span:
+        # Semantic conventions that Braintrust’s GenAI UI expects:
+        span.set_attribute("gen_ai.prompt", json.dumps(request_messages))
+        updated_messages_dicts = get_agent_response(request_messages)
+        span.set_attribute("gen_ai.completion", json.dumps(updated_messages_dicts))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -79,17 +79,6 @@ def process_query_sync(
         span.set_attribute("bulk_test.query_id", query_id)
         span.set_attribute("conversation.id", conv_id)
 
-        # ─── Clarification event ─────────────────────────────────────────────
-        # span.add_event(
-        #     "clarification_requested",
-        #     {"prompt": json.dumps(history)}
-        # )
-        # history = get_agent_response(history)
-        # clarifier_response = history[-1]["content"]
-        # span.add_event(
-        #     "clarification_received",
-        #     {"response": clarifier_response}
-        # )
 
         # ─── Clarification turn as a child span ─────────────────────────────
         with tracer.start_as_current_span("clarification_step") as child_span:
@@ -101,17 +90,6 @@ def process_query_sync(
         # Append user's clarity answer
         history.append({"role": "user", "content": clarification})
 
-        # # ─── Final recipe event ───────────────────────────────────────────────
-        # span.add_event(
-        #     "recipe_requested",
-        #     {"prompt": json.dumps(history)}
-        # )
-        # history = get_agent_response(history)
-        # final_response = history[-1]["content"]
-        # span.add_event(
-        #     "recipe_received",
-        #     {"response": final_response}
-        # )
 
         # ─── Final recipe turn as a child span ──────────────────────────────
         with tracer.start_as_current_span("final_step") as child_span:
