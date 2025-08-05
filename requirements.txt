@@ -17,7 +17,3 @@ seaborn
 plotly
 python-fasthtml
 monsterui
-braintrust[otel]
-opentelemetry-sdk
-opentelemetry-exporter-otlp
-opentelemetry-instrumentation-fastapi
