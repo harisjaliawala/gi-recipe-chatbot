@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend.utils import get_agent_response  # noqa: WPS433 import from parent
-import os, json
+import os
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from braintrust.otel import BraintrustSpanProcessor
@@ -22,9 +22,6 @@ from braintrust.otel import BraintrustSpanProcessor
 provider = TracerProvider()
 provider.add_span_processor(BraintrustSpanProcessor())               # auto-uses your BRAINTRUST_ env vars
 trace.set_tracer_provider(provider)
-
-# 2. Grab a tracer for this module
-tracer = trace.get_tracer(__name__)
 
 # -----------------------------------------------------------------------------
 # Application setup
@@ -78,22 +75,10 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:  # noqa: WPS430
     # Convert Pydantic models to simple dicts for the agent
     request_messages: List[Dict[str, str]] = [msg.model_dump() for msg in payload.messages]
 
- #   try:
-  #      updated_messages_dicts = get_agent_response(request_messages)
-   # except Exception as exc:  # noqa: BLE001 broad; surface as HTTP 500
-    #    # In production you would log the traceback here.
-    #    raise HTTPException(
-    #        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #        detail=str(exc),
-    #    ) from exc
-
     try:
-        with tracer.start_as_current_span("chat_interaction") as span:
-            # attach your JSON payloads as attributes
-            span.set_attribute("gen_ai.prompt_json", json.dumps(request_messages))
-            updated_messages_dicts = get_agent_response(request_messages)
-            span.set_attribute("gen_ai.completion_json", json.dumps(updated_messages_dicts))
-    except Exception as exc:
+        updated_messages_dicts = get_agent_response(request_messages)
+    except Exception as exc:  # noqa: BLE001 broad; surface as HTTP 500
+        # In production you would log the traceback here.
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
@@ -101,16 +86,16 @@ async def chat_endpoint(payload: ChatRequest) -> ChatResponse:  # noqa: WPS430
 
     response = ChatResponse(messages=[ChatMessage(**msg) for msg in updated_messages_dicts])
 
-    # # Save trace (request and response) in one place
-    # traces_dir = Path(__file__).parent.parent / "annotation" / "traces"
-    # traces_dir.mkdir(parents=True, exist_ok=True)
-    # ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    # trace_path = traces_dir / f"trace_{ts}.json"
-    # with open(trace_path, "w") as f:
-    #     json.dump({
-    #         "request": payload.model_dump(),
-    #         "response": response.model_dump()
-    #     }, f)
+    # Save trace (request and response) in one place
+    traces_dir = Path(__file__).parent.parent / "annotation" / "traces"
+    traces_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    trace_path = traces_dir / f"trace_{ts}.json"
+    with open(trace_path, "w") as f:
+        json.dump({
+            "request": payload.model_dump(),
+            "response": response.model_dump()
+        }, f)
 
     return response
 
