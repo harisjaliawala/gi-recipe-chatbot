@@ -13,15 +13,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend.utils import get_agent_response  # noqa: WPS433 import from parent
-import os
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from braintrust.otel import BraintrustSpanProcessor
-
-# 1) Configure the global tracer provider
-provider = TracerProvider()
-provider.add_span_processor(BraintrustSpanProcessor())               # auto-uses your BRAINTRUST_ env vars
-trace.set_tracer_provider(provider)
 
 # -----------------------------------------------------------------------------
 # Application setup
@@ -29,11 +20,6 @@ trace.set_tracer_provider(provider)
 
 APP_TITLE: Final[str] = "Recipe Chatbot"
 app = FastAPI(title=APP_TITLE)
-
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-
-# 2) Auto-instrument FastAPI so every request is a span
-FastAPIInstrumentor.instrument_app(app)
 
 # Serve static assets (currently just the HTML) under `/static/*`.
 STATIC_DIR = Path(__file__).parent.parent / "frontend"
