@@ -135,10 +135,15 @@ def get_agent_response(messages: List[Dict[str, str]]) -> List[Dict[str, str]]: 
         # include_usage=True
     )
 
+    # assistant_reply_content: str = (
+    #     completion["choices"][0]["message"]["content"]  # type: ignore[index]
+    #     .strip()
+    # )
+
+    # Access the ChatCompletion object properly via attributes:
     assistant_reply_content: str = (
-        completion["choices"][0]["message"]["content"]  # type: ignore[index]
-        .strip()
-    )
+        completion.choices[0].message.content
+    ).strip()
     
     # Append assistant's response to the history
     updated_messages = current_messages + [{"role": "assistant", "content": assistant_reply_content}]
