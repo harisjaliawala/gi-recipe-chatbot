@@ -67,7 +67,7 @@ def get_agent_response(
     else:
         current_messages = messages
 
-    completion = litellm.completion(
+    completion = litellm_wrapper.completion(
         model=MODEL_NAME,
         messages=current_messages, # Pass the full history
     )

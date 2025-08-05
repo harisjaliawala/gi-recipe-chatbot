@@ -17,3 +17,4 @@ seaborn
 plotly
 python-fasthtml
 monsterui
+braintrust
