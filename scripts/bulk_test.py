@@ -12,9 +12,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 Reads a CSV file containing user queries, fires them against the `/chat`
 endpoint concurrently, and stores the results for later manual evaluation.
 """
-
-import os
-import json
+import os, json
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from braintrust.otel import BraintrustSpanProcessor
@@ -39,81 +37,75 @@ from rich.markdown import Markdown
 from backend.utils import get_agent_response, SYSTEM_PROMPT
 
 # -----------------------------------------------------------------------------
+# Configuration helpers
+# -----------------------------------------------------------------------------
+
 DEFAULT_CSV: Path = Path("data/sample_queries.csv")
 RESULTS_DIR: Path = Path("results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
-MAX_WORKERS = 32
+MAX_WORKERS = 32 # For ThreadPoolExecutor
+
+# -----------------------------------------------------------------------------
+# Core logic
+# -----------------------------------------------------------------------------
+
+# --- Sync function for ThreadPoolExecutor ---
+def process_query_sync(query_id: str, query: str) -> Tuple[str, str, str]:
+    """Processes a single query by calling the agent directly."""
+    initial_messages: List[Dict[str, str]] = [
+        {"role": "user", "content": query}
+    ]
+    try:
+        # get_agent_response now returns the full history
+        # updated_history = get_agent_response(initial_messages)
+        
+        ## The next 4 lines are commented out because this was basic tracing and I am adding tracing with a metadata field to know when it comes from the bulk test script
+        # with tracer.start_as_current_span("bulk_test_query") as span:
+        #     span.set_attribute("gen_ai.prompt_json", json.dumps(initial_messages))
+        #     updated_history = get_agent_response(initial_messages)
+        #     span.set_attribute("gen_ai.completion_json", json.dumps(updated_history))
+        
+        # start a span and tag it as from the bulk-testing tool
+        with tracer.start_as_current_span("bulk_test_query") as span:
+            # metadata marker
+            span.set_attribute("bulk_test.tool", "bulk_testing_utility")
+            # your existing GenAI attributes
+            span.set_attribute("gen_ai.prompt_json", json.dumps(initial_messages))
+            updated_history = get_agent_response(initial_messages)
+            span.set_attribute("gen_ai.completion_json", json.dumps(updated_history))
+
+        # Extract the last assistant message for the result
+        assistant_reply = ""
+        if updated_history and updated_history[-1]["role"] == "assistant":
+            assistant_reply = updated_history[-1]["content"]
+        else: # Should not happen with current logic but good to handle
+            assistant_reply = "Error: No assistant reply found in history."
+        return query_id, query, assistant_reply
+    except Exception as e:
+        return query_id, query, f"Error processing query: {str(e)}"
 
 
-def process_query_sync(
-    query_id: str,
-    query: str,
-    clarification: str
-) -> Tuple[str, str, str, str]:
-    """
-    Runs a two-turn conversation:
-    1) send initial query → get clarifier question
-    2) send canned clarification → get final recipe
-
-    Returns (query_id, query, clarifier_response, final_response)
-    """
-    history: List[Dict[str, str]] = [{"role": "user", "content": query}]
-    clarifier_response = ""
-    final_response = ""
-
-    # 1) Root span for entire conversation
-    with tracer.start_as_current_span("bulk_test_conversation") as convo_span:
-        convo_span.set_attribute("bulk_test.tool", "bulk_testing_utility")
-        convo_span.set_attribute("bulk_test.query_id", query_id)
-
-        # 2) Clarification step
-        with tracer.start_as_current_span("clarification_step") as span:
-            span.set_attribute("gen_ai.prompt_json", json.dumps(history))
-            history = get_agent_response(history)
-            span.set_attribute("gen_ai.completion_json", json.dumps(history))
-        # Grab the assistant's clarifier question
-        clarifier_response = history[-1]["content"]
-
-        # 3) Append the user's clarification answer
-        history.append({"role": "user", "content": clarification})
-
-        # 4) Final recipe step
-        with tracer.start_as_current_span("final_step") as span:
-            span.set_attribute("gen_ai.prompt_json", json.dumps(history))
-            history = get_agent_response(history)
-            span.set_attribute("gen_ai.completion_json", json.dumps(history))
-        # Grab the assistant's final recipe
-        final_response = history[-1]["content"]
-
-    return query_id, query, clarifier_response, final_response
-
-
+# Renamed and made sync
 def run_bulk_test(csv_path: Path, num_workers: int = MAX_WORKERS) -> None:
     """Main entry point for bulk testing (synchronous version)."""
 
     with csv_path.open("r", newline="", encoding="utf-8") as csv_file:
         reader = csv.DictReader(csv_file)
+        # Expects columns 'id' and 'query'
         input_data: List[Dict[str, str]] = [
-            row for row in reader
-            if row.get("id") and row.get("query") and row.get("clarification")
+            row for row in reader if row.get("id") and row.get("query")
         ]
 
     if not input_data:
-        raise ValueError("No valid data (with 'id', 'query', and 'clarification') found in the provided CSV file.")
+        raise ValueError("No valid data (with 'id' and 'query') found in the provided CSV file.")
 
     console = Console()
-    results_data: List[Tuple[str, str, str, str]] = []  # Will store (id, query, clarifier_response, final_response)
-
+    results_data: List[Tuple[str, str, str]] = [] # Will store (id, query, response)
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
         future_to_data = {
-            executor.submit(
-                process_query_sync,
-                item["id"],
-                item["query"],
-                item["clarification"],
-            ): item
-            for item in input_data
+            executor.submit(process_query_sync, item["id"], item["query"]):
+            item for item in input_data
         }
         console.print(f"[bold blue]Submitting {len(input_data)} queries to the executor...[/bold blue]")
         for i, future in enumerate(as_completed(future_to_data)):
@@ -121,36 +113,33 @@ def run_bulk_test(csv_path: Path, num_workers: int = MAX_WORKERS) -> None:
             item_id = item_data["id"]
             item_query = item_data["query"]
             try:
-                qid, q, clarifier, final = future.result()
-                results_data.append((qid, q, clarifier, final))
+                processed_id, original_query, response_text = future.result()
+                results_data.append((processed_id, original_query, response_text))
 
+                panel_content = Text()
+                panel_content.append(f"ID: {processed_id}\n", style="bold magenta")
+                panel_content.append("Query:\n", style="bold yellow")
+                panel_content.append(f"{original_query}\n\n")
+
+                # Create a separate Markdown object for the response
+                response_markdown = Markdown(response_text)
+
+                # Group the different parts for the Panel
                 panel_group = Group(
-                    Text(f"ID: {qid}\n", style="bold magenta"),
-                    Text("Query:\n", style="bold yellow"),
-                    Text(q + "\n\n"),
-                    Markdown("**Clarification Question:**"),
-                    Text(clarifier + "\n\n"),
-                    Markdown("**Final Recipe:**"),
-                    Markdown(final),
+                    panel_content, # Contains ID and Query
+                    Markdown("--- Response ---"), # A small separator for clarity
+                    response_markdown  # The Markdown rendered response
                 )
-                console.print(
-                    Panel(
-                        panel_group,
-                        title=f"Result {i+1}/{len(input_data)} - ID: {qid}",
-                        border_style="cyan",
-                    )
-                )
+
+                console.print(Panel(
+                    panel_group, # Pass the group as the single renderable
+                    title=f"Result {i+1}/{len(input_data)} - ID: {processed_id}", 
+                    border_style="cyan"
+                ))
 
             except Exception as exc:
-                console.print(
-                    Panel(
-                        f"[bold red]Exception for ID {item_id}, Query:[/bold red]\n{item_query}\n\n[bold red]Error:[/bold red]\n{exc}",
-                        title=f"Error in Result {i+1}/{len(input_data)} - ID: {item_id}",
-                        border_style="red"
-                    )
-                )
-                results_data.append((item_id, item_query, f"Exception during processing: {str(exc)}", ""))
-
+                console.print(Panel(f"[bold red]Exception for ID {item_id}, Query:[/bold red]\n{item_query}\n\n[bold red]Error:[/bold red]\n{exc}", title=f"Error in Result {i+1}/{len(input_data)} - ID: {item_id}", border_style="red"))
+                results_data.append((item_id, item_query, f"Exception during processing: {str(exc)}"))
         console.print("[bold blue]All queries processed.[/bold blue]")
 
     timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -158,7 +147,7 @@ def run_bulk_test(csv_path: Path, num_workers: int = MAX_WORKERS) -> None:
 
     with out_path.open("w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file)
-        writer.writerow(["id", "query", "clarifier_response", "final_response"])
+        writer.writerow(["id", "query", "response"])
         writer.writerows(results_data)
 
     console.print(f"[bold green]Saved {len(results_data)} results to {str(out_path)}[/bold green]")
@@ -166,7 +155,7 @@ def run_bulk_test(csv_path: Path, num_workers: int = MAX_WORKERS) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bulk test the recipe chatbot")
-    parser.add_argument("--csv", type=Path, default=DEFAULT_CSV, help="Path to CSV file containing queries (columns: 'id', 'query', 'clarification').")
+    parser.add_argument("--csv", type=Path, default=DEFAULT_CSV, help="Path to CSV file containing queries (column name: 'query').")
     parser.add_argument("--workers", type=int, default=MAX_WORKERS, help=f"Number of worker threads (default: {MAX_WORKERS}).")
     args = parser.parse_args()
     run_bulk_test(args.csv, args.workers)
