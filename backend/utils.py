@@ -133,7 +133,7 @@ def get_agent_response(messages: List[Dict[str, str]]) -> List[Dict[str, str]]: 
         messages=current_messages,
         stream=False,
         include_usage=True
-    )
++    )
 
     assistant_reply_content: str = (
         completion["choices"][0]["message"]["content"]  # type: ignore[index]
