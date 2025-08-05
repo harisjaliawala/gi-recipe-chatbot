@@ -71,34 +71,34 @@ def process_query_sync(
     final_response = ""
 
     # Unique conversation identifier
-    conv_id = str(uuid.uuid4())
+    # conv_id = str(uuid.uuid4())
 
-    # Root span encompassing both turns
-    with tracer.start_as_current_span("bulk_test_conversation") as span:
-        span.set_attribute("bulk_test.tool", "bulk_testing_utility")
-        span.set_attribute("bulk_test.query_id", query_id)
-        span.set_attribute("conversation.id", conv_id)
-
-
-        # ─── Clarification turn as a child span ─────────────────────────────
-        with tracer.start_as_current_span("clarification_step") as child_span:
-            child_span.set_attribute("gen_ai.prompt", json.dumps(history))
-            history = get_agent_response(history)
-            clarifier_response = history[-1]["content"]
-            child_span.set_attribute("gen_ai.completion", json.dumps(history))
-
-        # Append user's clarity answer
-        history.append({"role": "user", "content": clarification})
+    # # Root span encompassing both turns
+    # with tracer.start_as_current_span("bulk_test_conversation") as span:
+    #     span.set_attribute("bulk_test.tool", "bulk_testing_utility")
+    #     span.set_attribute("bulk_test.query_id", query_id)
+    #     span.set_attribute("conversation.id", conv_id)
 
 
-        # ─── Final recipe turn as a child span ──────────────────────────────
-        with tracer.start_as_current_span("final_step") as child_span:
-            child_span.set_attribute("gen_ai.prompt", json.dumps(history))
-            history = get_agent_response(history)
-            final_response = history[-1]["content"]
-            child_span.set_attribute("gen_ai.completion", json.dumps(history))
+    #     # ─── Clarification turn as a child span ─────────────────────────────
+    #     with tracer.start_as_current_span("clarification_step") as child_span:
+    #         child_span.set_attribute("gen_ai.prompt", json.dumps(history))
+    #         history = get_agent_response(history)
+    #         clarifier_response = history[-1]["content"]
+    #         child_span.set_attribute("gen_ai.completion", json.dumps(history))
 
-    return query_id, query, clarifier_response, final_response
+    #     # Append user's clarity answer
+    #     history.append({"role": "user", "content": clarification})
+
+
+    #     # ─── Final recipe turn as a child span ──────────────────────────────
+    #     with tracer.start_as_current_span("final_step") as child_span:
+    #         child_span.set_attribute("gen_ai.prompt", json.dumps(history))
+    #         history = get_agent_response(history)
+    #         final_response = history[-1]["content"]
+    #         child_span.set_attribute("gen_ai.completion", json.dumps(history))
+
+    # return query_id, query, clarifier_response, final_response
 
 
 def run_bulk_test(csv_path: Path, num_workers: int = MAX_WORKERS) -> None:
